@@ -117,6 +117,8 @@ export const actionSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('device.toggle'), deviceId: z.string(), connect: z.boolean() }),
   z.object({ type: z.literal('device.sync'), deviceId: z.string() }),
+  z.object({ type: z.literal('healthsync.createKey') }),
+  z.object({ type: z.literal('healthsync.revoke') }),
   z.object({ type: z.literal('milestone.toggle'), id: z.string(), done: z.boolean() }),
   z.object({ type: z.literal('goal.add'), goal }),
   z.object({ type: z.literal('goal.update'), id: z.string(), patch: goal.partial() }),

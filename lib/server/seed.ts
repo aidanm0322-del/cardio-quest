@@ -15,6 +15,8 @@ import type {
 
 export const STATE_VERSION = 3
 
+export const APPLE_HEALTH_NOTE = 'Apple Watch readings arrive through an Apple Shortcut on your iPhone.'
+
 // Deterministic pseudo-random so the demo looks the same after every reset.
 function rng(seed: number) {
   let s = seed
@@ -325,10 +327,10 @@ export function createSeed(options: { firstTime?: boolean } = {}): AppState {
         id: 'dev-apple',
         name: 'Apple Health',
         kind: 'app',
-        status: 'not-implemented',
-        metrics: ['heartRate', 'steps', 'oxygen'],
+        status: 'disconnected',
+        metrics: ['heartRate', 'steps', 'oxygen', 'bloodPressure'],
         lastSync: null,
-        note: 'Requires a native iOS companion app (HealthKit). Not implemented.',
+        note: APPLE_HEALTH_NOTE,
       },
       {
         id: 'dev-health-connect',

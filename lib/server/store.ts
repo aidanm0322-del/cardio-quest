@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { neon } from '@neondatabase/serverless'
 import type { AppState } from '@/lib/types'
-import { STATE_VERSION, createSeed } from './seed'
+import { APPLE_HEALTH_NOTE, STATE_VERSION, createSeed } from './seed'
 
 /**
  * Storage adapter. The prototype stores one fictional demo patient as a
@@ -71,7 +71,13 @@ let queue: Promise<unknown> = Promise.resolve()
 
 export async function readState(): Promise<AppState> {
   const existing = await store.load()
-  if (existing && existing.version === STATE_VERSION) return existing
+  if (existing && existing.version === STATE_VERSION) {
+    const apple = existing.devices.find((d) => d.id === 'dev-apple')
+    if (apple?.status === 'not-implemented') {
+      Object.assign(apple, { status: 'disconnected', note: APPLE_HEALTH_NOTE, metrics: ['heartRate', 'steps', 'oxygen', 'bloodPressure'] })
+    }
+    return existing
+  }
   const seed = createSeed()
   await store.save(seed)
   return seed

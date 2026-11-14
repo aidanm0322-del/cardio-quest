@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Activity, Droplets, Footprints, HeartPulse, RefreshCw } from 'lucide-react'
 import { useGame, usePatient } from '@/components/app/game-provider'
 import { GameButton, PageHeader, Panel, Tag } from '@/components/app/game-ui'
+import { AppleHealthSync } from '@/components/health/apple-health-sync'
 import { formatDateTime, timeAgo } from '@/lib/dates'
 import type { MetricType, Reading } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -101,7 +102,7 @@ export function HealthView() {
 
         <Panel title="Connected devices">
           <ul className="flex flex-col gap-3">
-            {data.devices.map((d) => (
+            {data.devices.map((d) => d.id === 'dev-apple' ? <AppleHealthSync key={d.id} device={d} /> : (
               <li key={d.id} className="flex flex-col gap-2 rounded-lg border-2 border-border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-bold">{d.name}</p>
