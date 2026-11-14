@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { dayKey, formatClock, formatDateTime, recoveryDayFor } from '@/lib/dates'
 import { matchCheckIn, matchMood, matchReading, type RuleMatch } from '@/lib/escalation'
@@ -10,6 +11,7 @@ import type {
   CaregiverView,
   CelebrationPayload,
   ClinicianView,
+  MetricType,
   PatientView,
   Quest,
   Role,
@@ -51,6 +53,7 @@ export function patientView(state: AppState): PatientView {
   const today = dayKey()
   return {
     ...state,
+    devices: state.devices.map(({ syncKeyHash: _hash, ...d }) => d),
     today,
     recoveryDay: recoveryDayFor(state.profile.surgeryDate),
     quests: buildQuests(state, today),
@@ -169,7 +172,62 @@ function raise(state: AppState, match: RuleMatch, source: Alert['source'], simul
 
 /* ------------------------------ Actions ------------------------------ */
 
-type Outcome = { celebration?: CelebrationPayload; alert?: Alert }
+type Outcome = { celebration?: CelebrationPayload; alert?: Alert; syncKey?: string }
+
+const APPLE_ID = 'dev-apple'
+const hashKey = (key: string) => createHash('sha256').update(key).digest('hex')
+
+function appleDevice(state: AppState) {
+  const dev = state.devices.find((d) => d.id === APPLE_ID)
+  if (!dev) throw new HttpError(404, 'Apple Health is not set up for this patient.')
+  return dev
+}
+
+/** Verify a Shortcuts sync key in constant time. */
+export function verifySyncKey(state: AppState, key: string) {
+  const stored = state.devices.find((d) => d.id === APPLE_ID)?.syncKeyHash
+  if (!stored || !key) return false
+  const a = Buffer.from(hashKey(key), 'hex')
+  const b = Buffer.from(stored, 'hex')
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+export interface HealthSample {
+  metric: MetricType
+  value: number
+  value2?: number
+  label: string
+}
+
+/** Store samples pushed from Apple Health and run them through the safety rules. */
+export function ingestAppleSamples(state: AppState, samples: HealthSample[], at: string) {
+  const dev = appleDevice(state)
+  const units: Record<MetricType, string> = { heartRate: 'bpm', bloodPressure: 'mmHg', oxygen: '%', steps: 'steps' }
+  const alerts: Alert[] = []
+  for (const s of samples) {
+    const reading = {
+      id: uid('rd'),
+      metric: s.metric,
+      value: s.value,
+      value2: s.value2,
+      unit: units[s.metric],
+      at,
+      source: { kind: 'device' as const, name: s.label },
+    }
+    if (s.metric === 'steps') {
+      // Step totals grow through the day; keep one Apple reading per day.
+      const day = dayKey(new Date(at))
+      state.readings = state.readings.filter(
+        (r) => !(r.metric === 'steps' && r.source.name === s.label && dayKey(new Date(r.at)) === day),
+      )
+    }
+    state.readings.push(reading)
+    const m = matchReading(reading, state.rules)
+    if (m) alerts.push(raise(state, m, 'reading'))
+  }
+  dev.lastSync = new Date().toISOString()
+  return alerts
+}
 
 const PATIENT_ONLY = new Set<Action['type']>([
   'onboarding.complete',
@@ -189,6 +247,8 @@ const PATIENT_ONLY = new Set<Action['type']>([
   'reading.add',
   'device.toggle',
   'device.sync',
+  'healthsync.createKey',
+  'healthsync.revoke',
   'milestone.toggle',
   'goal.add',
   'goal.update',
@@ -353,9 +413,25 @@ export function applyAction(state: AppState, action: Action): Outcome {
       const m = matchReading(reading, state.rules)
       return { alert: m ? raise(state, m, 'reading') : undefined }
     }
+    case 'healthsync.createKey': {
+      const dev = appleDevice(state)
+      const key = `cq_${randomBytes(24).toString('base64url')}`
+      dev.syncKeyHash = hashKey(key)
+      dev.syncKeyHint = key.slice(-4)
+      dev.status = 'connected'
+      return { syncKey: key }
+    }
+    case 'healthsync.revoke': {
+      const dev = appleDevice(state)
+      dev.syncKeyHash = null
+      dev.syncKeyHint = null
+      dev.status = 'disconnected'
+      return {}
+    }
     case 'device.toggle': {
       const dev = state.devices.find((d) => d.id === action.deviceId)
       if (!dev) throw new HttpError(404, 'Device not found.')
+      if (dev.id === APPLE_ID) throw new HttpError(400, 'Use the Apple Watch setup steps to connect Apple Health.')
       if (dev.status === 'not-implemented') throw new HttpError(400, `${dev.name} is not implemented in this prototype.`)
       dev.status = action.connect ? 'connected' : 'disconnected'
       return {}
@@ -363,6 +439,7 @@ export function applyAction(state: AppState, action: Action): Outcome {
     case 'device.sync': {
       const dev = state.devices.find((d) => d.id === action.deviceId)
       if (!dev || dev.status !== 'connected') throw new HttpError(400, 'Connect the device before syncing.')
+      if (dev.id === APPLE_ID) throw new HttpError(400, 'Run the Cardio Quest shortcut on your iPhone to sync Apple Health.')
       // Simulated sync: append a plausible demo reading for each supported metric.
       for (const metric of dev.metrics) {
         if (metric === 'heartRate')

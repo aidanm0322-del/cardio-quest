@@ -253,6 +253,10 @@ export interface DeviceConnection {
   metrics: MetricType[]
   lastSync: ISODate | null
   note: string
+  /** Last 4 characters of the active Shortcuts sync key (Apple Health only). */
+  syncKeyHint?: string | null
+  /** SHA-256 of the sync key. Server-only; stripped from client views. */
+  syncKeyHash?: string | null
 }
 
 /* ------------------------------ Care plan ------------------------------ */
@@ -426,4 +430,6 @@ export interface ActionResult {
   view: PatientView
   celebration?: CelebrationPayload
   alert?: Alert
-}
+  /** Returned once when an Apple Health sync key is created. */
+  syncKey?: string
+  }
