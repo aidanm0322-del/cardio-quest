@@ -30,6 +30,18 @@ const post = <T,>(url: string, data: unknown) => request<T>(url, { method: 'POST
 
 export type { Action }
 
+export type LockedRole = Exclude<Role, 'patient'>
+
+export interface SessionInfo {
+  /** null when signed out. */
+  role: Role | null
+  /** Password-protected roles this visitor has signed in to. */
+  unlocked: LockedRole[]
+  /** Which password sign-ins this site has configured. */
+  logins: Record<LockedRole, boolean>
+  storage: 'postgres' | 'file'
+}
+
 export const KEYS = {
   patient: '/api/patient',
   clinician: '/api/clinician',
@@ -41,7 +53,10 @@ export const api = {
   patient: () => request<PatientView>(KEYS.patient),
   clinician: () => request<ClinicianView>(KEYS.clinician),
   caregiver: () => request<CaregiverView>(KEYS.caregiver),
-  session: () => request<{ role: Role; storage: 'postgres' | 'file' }>(KEYS.session),
+  session: () => request<SessionInfo>(KEYS.session),
+  demoLogin: () => post<{ role: Role }>(KEYS.session, { type: 'demo-login' }),
+  login: (role: LockedRole, password: string) => post<{ role: Role }>(KEYS.session, { type: 'login', role, password }),
+  logout: () => post<{ role: null }>(KEYS.session, { type: 'logout' }),
   act: (action: Action) => post<ActionResult>('/api/actions', action),
   clinicianAct: (action: Action) => post<{ view: ClinicianView }>('/api/actions', action),
   chat: (message: string) => post<{ view: PatientView; alert?: Alert }>('/api/chat', { task: 'chat', message }),

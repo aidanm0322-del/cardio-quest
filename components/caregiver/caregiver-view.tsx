@@ -12,7 +12,7 @@ export function CaregiverView() {
   return (
     <main id="main" className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 md:px-8">
       {error ? (
-        <ErrorState message={error.status === 403 ? 'Switch to the caregiver role in the demo bar to see this view.' : error.message} onRetry={error.status === 403 ? undefined : () => mutate()} />
+        <ErrorState message={error.status === 403 ? 'Sign in with the caregiver password (Caregiver in the demo bar) to see this view.' : error.message} onRetry={error.status === 403 ? undefined : () => mutate()} />
       ) : !data ? (
         <LoadingState label="Loading…" />
       ) : data.status !== 'active' ? (

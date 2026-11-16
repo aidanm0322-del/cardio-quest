@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 import { toast } from 'sonner'
-import { FlaskConical, RotateCcw } from 'lucide-react'
+import { FlaskConical, Lock, LogOut, RotateCcw } from 'lucide-react'
 import { KEYS, api } from '@/lib/client/api'
 import type { Role } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,7 @@ const ROLES: { role: Role; label: string; href: string }[] = [
   { role: 'caregiver', label: 'Caregiver', href: '/caregiver' },
 ]
 
-/** Hackathon controls. Role switching sets a demo session cookie; the server enforces access per role. */
+/** Demo controls. Clinician and caregiver views need their password; the server enforces access per role. */
 export function DemoBar() {
   const router = useRouter()
   const { mutate } = useSWRConfig()
@@ -23,6 +23,10 @@ export function DemoBar() {
   const [busy, setBusy] = useState(false)
 
   async function switchTo(role: Role, href: string) {
+    if (role !== 'patient' && !data?.unlocked.includes(role)) {
+      router.push(`/login?role=${role}`)
+      return
+    }
     setBusy(true)
     try {
       await api.switchRole(role)
@@ -31,6 +35,19 @@ export function DemoBar() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not switch role')
     } finally {
+      setBusy(false)
+    }
+  }
+
+  async function signOut() {
+    setBusy(true)
+    try {
+      await api.logout()
+      await mutate(() => true, undefined, { revalidate: false })
+      await mutate(KEYS.session)
+      router.replace('/login')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not sign out')
       setBusy(false)
     }
   }
@@ -67,6 +84,7 @@ export function DemoBar() {
               onClick={() => switchTo(r.role, r.href)}
               className={cn('min-h-8 rounded-md px-2.5 font-semibold', data?.role === r.role ? 'bg-gold text-navy' : 'hover:bg-sidebar-accent')}
             >
+              {r.role !== 'patient' && !data?.unlocked.includes(r.role) && <Lock className="mr-1 inline size-3.5 align-[-2px] opacity-70" aria-label="needs sign-in" />}
               {r.label}
             </button>
           ))}
@@ -77,6 +95,9 @@ export function DemoBar() {
           </button>
           <button type="button" disabled={busy} onClick={() => reset(true)} className="min-h-8 rounded-md px-2.5 hover:bg-sidebar-accent">
             Start as new patient
+          </button>
+          <button type="button" disabled={busy} onClick={signOut} className="flex min-h-8 items-center gap-1.5 rounded-md px-2.5 hover:bg-sidebar-accent">
+            <LogOut className="size-4" aria-hidden /> Sign out
           </button>
         </div>
       </div>

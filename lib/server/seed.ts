@@ -454,14 +454,24 @@ export function createSeed(options: { firstTime?: boolean } = {}): AppState {
       },
     ],
     chat: [],
-    caregiver: {
-      status: 'none',
-      name: '',
-      email: '',
-      relationship: '',
-      invitedAt: null,
-      permissions: { medications: true, appointments: true, milestones: true, healthUpdates: false },
-    },
+    caregiver: options.firstTime
+      ? {
+          status: 'none',
+          name: '',
+          email: '',
+          relationship: '',
+          invitedAt: null,
+          permissions: { medications: true, appointments: true, milestones: true, healthUpdates: false },
+        }
+      : {
+          // Demo caregiver, so the caregiver sign-in has something to show.
+          status: 'active',
+          name: 'Elena Alvarez',
+          email: 'elena.alvarez@example.com',
+          relationship: 'Daughter',
+          invitedAt: at(now, -14, 18),
+          permissions: { medications: true, appointments: true, milestones: true, healthUpdates: true },
+        },
     rules: DEFAULT_RULES,
     alerts: [],
     supportRequests: [],

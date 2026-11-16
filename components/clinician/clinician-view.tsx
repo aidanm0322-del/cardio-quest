@@ -30,7 +30,7 @@ export function ClinicianView() {
     }
   }
 
-  if (error) return <Wrap>{error.status === 403 ? <ErrorState message="Switch to the clinician role in the demo bar to see this dashboard." /> : <ErrorState message={error.message} onRetry={() => mutate()} />}</Wrap>
+  if (error) return <Wrap>{error.status === 403 ? <ErrorState message="Sign in with the clinician password (Clinician in the demo bar) to see this dashboard." /> : <ErrorState message={error.message} onRetry={() => mutate()} />}</Wrap>
   if (!data) return <Wrap><LoadingState label="Loading patient chart…" /></Wrap>
 
   const openAlerts = data.alerts.filter((a) => !a.acknowledged)

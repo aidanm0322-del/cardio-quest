@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { SWRConfig } from 'swr'
+import useSWR, { SWRConfig } from 'swr'
 import {
   Activity,
   BookHeart,
@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react'
 import { PixelCharacter } from '@/components/character/pixel-character'
-import { api } from '@/lib/client/api'
+import { KEYS, api } from '@/lib/client/api'
 import { cn } from '@/lib/utils'
 import { DemoBar } from './demo-bar'
 import { GameProvider, usePatient } from './game-provider'
@@ -43,24 +43,44 @@ const NAV = [
 
 const MOBILE_NAV = [NAV[0], NAV[2], NAV[3], NAV[5]]
 
-const FULLSCREEN = ['/', '/onboarding']
+const FULLSCREEN = ['/', '/onboarding', '/login']
 const OTHER_ROLES = ['/clinician', '/caregiver']
+/** Pages anyone can open without signing in. Emergency help must never sit behind a login. */
+const PUBLIC = ['/login', '/emergency']
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const fullscreen = FULLSCREEN.includes(pathname)
-  const otherRole = OTHER_ROLES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-
   return (
     <SWRConfig value={{ revalidateOnFocus: false }}>
       <GameProvider>
         <a href="#main" className="sr-only z-[80] rounded-md bg-card p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2">
           Skip to main content
         </a>
-        <DemoBar />
-        {fullscreen || otherRole ? children : <PatientChrome>{children}</PatientChrome>}
+        <SignInGate>{children}</SignInGate>
       </GameProvider>
     </SWRConfig>
+  )
+}
+
+function SignInGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const { data: session } = useSWR(KEYS.session, api.session)
+  const isPublic = PUBLIC.includes(pathname)
+  const signedIn = !!session?.role
+  const fullscreen = FULLSCREEN.includes(pathname)
+  const otherRole = OTHER_ROLES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+
+  useEffect(() => {
+    if (session && !session.role && !isPublic) router.replace('/login')
+  }, [session, isPublic, router])
+
+  if (!isPublic && !signedIn) return <LoadingState label="Checking your sign-in…" />
+
+  return (
+    <>
+      {signedIn && pathname !== '/login' && <DemoBar />}
+      {fullscreen || otherRole ? children : <PatientChrome>{children}</PatientChrome>}
+    </>
   )
 }
 

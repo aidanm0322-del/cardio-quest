@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { cookies } from 'next/headers'
+import { readSession } from './auth'
 import { dayKey, formatClock, formatDateTime, recoveryDayFor } from '@/lib/dates'
 import { matchCheckIn, matchMood, matchReading, type RuleMatch } from '@/lib/escalation'
 import { buildQuests, celebrationMessage, cosmeticsUnlockedAt, isLocked, levelFor } from '@/lib/game'
@@ -18,8 +18,6 @@ import type {
 } from '@/lib/types'
 import type { Action } from './schema'
 
-export const ROLE_COOKIE = 'cq_role'
-
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -30,17 +28,17 @@ export class HttpError extends Error {
 }
 
 /**
- * Demo session: the role lives in an httpOnly cookie set by /api/session.
- * This is NOT authentication — production must replace it with real auth
+ * Demo login: a signed session cookie set by /api/session (see ./auth).
+ * It guards one shared demo patient. Production needs real per-user accounts
  * (e.g. Better Auth) and per-user patient records.
  */
-export async function currentRole(): Promise<Role> {
-  const v = (await cookies()).get(ROLE_COOKIE)?.value
-  return v === 'clinician' || v === 'caregiver' ? v : 'patient'
+export async function currentRole(): Promise<Role | null> {
+  return (await readSession())?.role ?? null
 }
 
 export async function requireRole(...roles: Role[]) {
   const role = await currentRole()
+  if (!role) throw new HttpError(401, 'Please sign in to continue.')
   if (!roles.includes(role)) throw new HttpError(403, `This action requires the ${roles.join(' or ')} role.`)
   return role
 }
